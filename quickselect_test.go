@@ -10,10 +10,7 @@ func TestQuickSelectAllDuplicates(t *testing.T) {
 	k := 11
 
 	data := make([]int, n)
-	lo, hi, err := QuickSelect(sort.IntSlice(data), k)
-	if err != nil {
-		t.Errorf("Shouldn't have raised error: '%s'", err.Error())
-	}
+	lo, hi := QuickSelect(sort.IntSlice(data), k)
 	smallestK := data[lo:hi]
 	expectedK := data[:k]
 	if !hasSameElements(smallestK, expectedK) {
@@ -23,10 +20,7 @@ func TestQuickSelectAllDuplicates(t *testing.T) {
 
 func TestQuickSelectWithSimpleArray(t *testing.T) {
 	data := []int{50, 20, 30, 25, 45, 2, 6, 10, 3, 4, 5}
-	lo, hi, err := QuickSelect(sort.IntSlice(data), 5)
-	if err != nil {
-		t.Errorf("Shouldn't have raised error: '%s'", err.Error())
-	}
+	lo, hi := QuickSelect(sort.IntSlice(data), 5)
 	smallestK := data[lo:hi]
 	expectedK := []int{2, 3, 4, 5, 6}
 	if !hasSameElements(smallestK, expectedK) {
@@ -36,32 +30,11 @@ func TestQuickSelectWithSimpleArray(t *testing.T) {
 
 func TestQuickSelectWithRepeatedElements(t *testing.T) {
 	data := []int{2, 10, 5, 3, 2, 6, 2, 6, 10, 3, 4, 5}
-	lo, hi, err := QuickSelect(sort.IntSlice(data), 5)
-	if err != nil {
-		t.Errorf("Shouldn't have raised error: '%s'", err.Error())
-	}
+	lo, hi := QuickSelect(sort.IntSlice(data), 5)
 	smallestK := data[lo:hi]
 	expectedK := []int{2, 2, 2, 3, 3}
 	if !hasSameElements(smallestK, expectedK) {
 		t.Errorf("Expected smallest K elements to be '%v', but got '%v'", expectedK, smallestK)
-	}
-}
-
-func TestQuickSelectEmptyDataStructure(t *testing.T) {
-	data := sort.IntSlice([]int{})
-	_, _, err := QuickSelect(data, 0)
-	if err == nil {
-		t.Errorf("Should have raised error on index outside of array length.")
-	}
-
-	_, _, err = QuickSelect(data, 5)
-	if err == nil {
-		t.Errorf("Should have raised error on index outside of array length.")
-	}
-
-	_, _, err = QuickSelect(data, -1)
-	if err == nil {
-		t.Errorf("Should have raised error on index outside of array length.")
 	}
 }
 

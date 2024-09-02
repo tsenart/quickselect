@@ -9,7 +9,6 @@ heap implementations).
 package quickselect
 
 import (
-	"fmt"
 	"math"
 	"sort"
 )
@@ -34,26 +33,24 @@ finding the smallest k elements in a data structure.
 Note that k must be in the range [0, data.Len()), otherwise the QuickSelect
 method will raise an error.
 */
-func QuickSelect(data sort.Interface, k int) (lo, hi int, err error) {
+func QuickSelect(data sort.Interface, k int) (lo, hi int) {
 	length := data.Len()
-	if k < 1 || k > length {
-		return 0, 0, fmt.Errorf("k=%d outside the range [1, %d]", k, length)
+	if k <= 0 || length <= 0 {
+		return 0, 0
 	}
 
-	if k == length {
-		return 0, length, nil
+	if k >= length {
+		return 0, length
 	}
 
 	kRatio := float64(k) / float64(length)
 	if length <= naiveSelectionLengthThreshold && k <= naiveSelectionThreshold {
 		lo, hi = naiveSelect(data, k)
 	} else if kRatio <= heapSelectionKRatio && k <= heapSelectionThreshold {
-		lo, hi = heapSelect(data, k)
-	} else {
-		lo, hi = quickSelect(data, 0, length-1, k)
+		return heapSelect(data, k)
 	}
 
-	return lo, hi, nil
+	return quickSelect(data, k)
 }
 
 /*
@@ -65,33 +62,89 @@ The algorithm works by finding a random pivot element, and making sure all the
 elements to the left are less than the pivot element and vice versa for
 elements on the right. Recursing on this solves the selection algorithm.
 */
-func quickSelect(data sort.Interface, low, high, k int) (lo, hi int) {
-	for {
-		if high-low <= partitionThreshold {
-			insertionSort(data, low, high+1)
-			return low, low + k
+// QuickSelect finds the kth smallest element in data[a:b] and ensures that
+// the k smallest elements are placed at the beginning of the slice.
+// It returns the index range containing the kth smallest element.
+func quickSelect(data sort.Interface, k int) (lo, hi int) {
+	length := data.Len()
+	if k <= 0 || length <= 0 {
+		return 0, 0
+	}
+
+	if k >= length {
+		return 0, length
+	}
+
+	if k == 1 {
+		lo = findMinimum(data, length)
+		return lo, lo + 1
+	}
+
+	a, b := 0, length-1
+	k = a + k - 1
+
+	for b > a {
+		if b-a <= partitionThreshold {
+			insertionSort(data, a, b+1)
+			return a, a + k
 		}
 
-		pivot := choosePivot(data, low, high+1)
-		pivotIndex := partition(data, low, high+1, pivot)
+		pivot := choosePivot(data, a, b)
+		lt, gt := partition3Way(data, a, b, pivot)
 
-		leftSize := pivotIndex - low
-
-		// Count elements equal to the pivot
-		equalSize := 1
-		for i := pivotIndex + 1; i <= high && !data.Less(pivotIndex, i) && !data.Less(i, pivotIndex); i++ {
-			equalSize++
-		}
-
-		if k <= leftSize {
-			high = pivotIndex - 1
-		} else if k > leftSize+equalSize {
-			k -= (leftSize + equalSize)
-			low = pivotIndex + equalSize
+		if k < lt {
+			b = lt - 1
+		} else if k > gt {
+			a = gt + 1
 		} else {
-			return low, low + k
+			return a, k
 		}
 	}
+
+	return a, a
+}
+
+// findMin finds the index of the minimum element in the data.
+func findMinimum(data sort.Interface, length int) int {
+	minIndex := 0
+	for i := 1; i < length; i++ {
+		if data.Less(i, minIndex) {
+			minIndex = i
+		}
+	}
+	return minIndex
+}
+
+// partition3Way partitions the slice data[a:b] around the pivot element.
+// It returns two indices: lt and gt.
+// - All elements in data[a:lt] are less than the pivot.
+// - All elements in data[lt:gt+1] are equal to the pivot.
+// - All elements in data[gt+1:b] are greater than the pivot.
+func partition3Way(data sort.Interface, a, b, pivot int) (lt, gt int) {
+	data.Swap(a, pivot)
+	lt, gt = a, b-1
+	i := a + 1
+
+	for i <= gt {
+		if data.Less(i, a) {
+			data.Swap(lt, i)
+			lt++
+			i++
+		} else if data.Less(a, i) {
+			data.Swap(i, gt)
+			gt--
+		} else {
+			i++
+		}
+	}
+
+	// Handle the case where all elements are equal
+	if lt == a && gt == b-1 {
+		return a, b - 1
+	}
+
+	data.Swap(a, lt)
+	return lt, gt
 }
 
 // Insertion sort
@@ -110,6 +163,15 @@ moves them to the front.
 */
 func naiveSelect(data sort.Interface, k int) (lo, hi int) {
 	length := data.Len()
+	if k <= 0 || length <= 0 {
+		return 0, 0
+	}
+
+	if k == 1 {
+		lo = findMinimum(data, length)
+		return lo, lo + 1
+	}
+
 	if k >= length {
 		return 0, length
 	}
@@ -257,6 +319,15 @@ all of the elements. It adds a new element and pops the largest element.
 */
 func heapSelect(data sort.Interface, k int) (lo, hi int) {
 	l := data.Len()
+	if k <= 0 || l <= 0 {
+		return 0, 0
+	}
+
+	if k == 1 {
+		lo = findMinimum(data, l)
+		return lo, lo + 1
+	}
+
 	if k >= l {
 		return 0, l
 	}
@@ -288,7 +359,7 @@ func heapSelect(data sort.Interface, k int) (lo, hi int) {
 		}
 	}
 
-	return 0, k
+	return 0, k - 1
 }
 
 func maxHeapInit(h sort.Interface, n int) {
