@@ -6,14 +6,16 @@ import (
 )
 
 func TestQuickSelectAllDuplicates(t *testing.T) {
+	n := 12
+	k := 11
 
-	data := []int{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
-	lo, hi, err := QuickSelect(sort.IntSlice(data), 5)
+	data := make([]int, n)
+	lo, hi, err := QuickSelect(sort.IntSlice(data), k)
 	if err != nil {
 		t.Errorf("Shouldn't have raised error: '%s'", err.Error())
 	}
 	smallestK := data[lo:hi]
-	expectedK := []int{1, 1, 1, 1, 1}
+	expectedK := data[:k]
 	if !hasSameElements(smallestK, expectedK) {
 		t.Errorf("Expected smallest K elements to be '%v', but got '%v'", expectedK, smallestK)
 	}

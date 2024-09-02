@@ -11,7 +11,6 @@ package quickselect
 import (
 	"fmt"
 	"math"
-	"math/rand/v2"
 	"sort"
 )
 
@@ -45,14 +44,14 @@ func QuickSelect(data sort.Interface, k int) (lo, hi int, err error) {
 		return 0, length, nil
 	}
 
-	kRatio := float64(k) / float64(length)
-	if length <= naiveSelectionLengthThreshold && k <= naiveSelectionThreshold {
-		lo, hi = naiveSelect(data, k)
-	} else if kRatio <= heapSelectionKRatio && k <= heapSelectionThreshold {
-		lo, hi = heapSelect(data, k)
-	} else {
-		lo, hi = quickSelect(data, 0, length-1, k)
-	}
+	// kRatio := float64(k) / float64(length)
+	// if length <= naiveSelectionLengthThreshold && k <= naiveSelectionThreshold {
+	// 	lo, hi = naiveSelect(data, k)
+	// } else if kRatio <= heapSelectionKRatio && k <= heapSelectionThreshold {
+	lo, hi = heapSelect(data, k)
+	// } else {
+	// 	lo, hi = quickSelect(data, 0, length-1, k)
+	// }
 
 	return lo, hi, nil
 }
@@ -68,24 +67,30 @@ elements on the right. Recursing on this solves the selection algorithm.
 */
 func quickSelect(data sort.Interface, low, high, k int) (lo, hi int) {
 	for {
-		if low >= high {
-			return low, high + 1
-		} else if high-low <= partitionThreshold {
+		if high-low <= partitionThreshold {
 			insertionSort(data, low, high+1)
 			return low, low + k
 		}
 
-		pivotIndex := rand.IntN(high+1-low) + low
-		pivotIndex = partition(data, low, high, pivotIndex)
+		pivot := choosePivot(data, low, high+1)
+		pivotIndex := partition(data, low, high+1, pivot)
 
-		if k < pivotIndex-low {
-			high = pivotIndex - 1
-		} else if k > pivotIndex-low {
-			k -= pivotIndex - low + 1
-			low = pivotIndex + 1
+		leftSize := pivotIndex - low
+
+		// Count elements equal to the pivot
+		equalSize := 1
+		for i := pivotIndex + 1; i <= high && !data.Less(pivotIndex, i) && !data.Less(i, pivotIndex); i++ {
+			equalSize++
 		}
 
-		return low, pivotIndex + 1
+		if k <= leftSize {
+			high = pivotIndex - 1
+		} else if k > leftSize+equalSize {
+			k -= (leftSize + equalSize)
+			low = pivotIndex + equalSize
+		} else {
+			return low, low + k
+		}
 	}
 }
 
@@ -146,17 +151,103 @@ originally in the pivotIndex and that the elements in the range
 [paritionIndex + 1, high] are greater than the element originally in the
 pivotIndex.
 */
-func partition(data sort.Interface, low, high, pivotIndex int) int {
-	partitionIndex := low
-	data.Swap(pivotIndex, high)
-	for i := low; i < high; i++ {
-		if data.Less(i, high) {
-			data.Swap(i, partitionIndex)
-			partitionIndex++
-		}
+func partition(data sort.Interface, a, b, pivot int) int {
+	data.Swap(a, pivot)
+	i, j := a+1, b-1 // i and j are inclusive of the elements remaining to be partitioned
+
+	for i <= j && data.Less(i, a) {
+		i++
 	}
-	data.Swap(partitionIndex, high)
-	return partitionIndex
+	for i <= j && !data.Less(j, a) {
+		j--
+	}
+	if i > j {
+		data.Swap(j, a)
+		return j
+	}
+	data.Swap(i, j)
+	i++
+	j--
+
+	for {
+		for i <= j && data.Less(i, a) {
+			i++
+		}
+		for i <= j && !data.Less(j, a) {
+			j--
+		}
+		if i > j {
+			break
+		}
+		data.Swap(i, j)
+		i++
+		j--
+	}
+	data.Swap(j, a)
+	return j
+}
+
+// choosePivot chooses a pivot in data[a:b].
+//
+// [0,8): chooses a static pivot.
+// [8,shortestNinther): uses the simple median-of-three method.
+// [shortestNinther,∞): uses the Tukey ninther method.
+func choosePivot(data sort.Interface, a, b int) (pivot int) {
+	const (
+		shortestNinther = 50
+		maxSwaps        = 4 * 3
+	)
+
+	l := b - a
+
+	var (
+		swaps int
+		i     = a + l/4*1
+		j     = a + l/4*2
+		k     = a + l/4*3
+	)
+
+	if l >= 8 {
+		if l >= shortestNinther {
+			// Tukey ninther method, the idea came from Rust's implementation.
+			i = medianAdjacent(data, i, &swaps)
+			j = medianAdjacent(data, j, &swaps)
+			k = medianAdjacent(data, k, &swaps)
+		}
+		// Find the median among i, j, k and stores it into j.
+		j = median(data, i, j, k, &swaps)
+	}
+
+	switch swaps {
+	case 0:
+		return j
+	case maxSwaps:
+		return j
+	default:
+		return j
+	}
+}
+
+// order2 returns x,y where data[x] <= data[y], where x,y=a,b or x,y=b,a.
+func order2(data sort.Interface, a, b int, swaps *int) (int, int) {
+	if data.Less(b, a) {
+		*swaps++
+		return b, a
+	}
+	return a, b
+}
+
+// median returns x where data[x] is the median of data[a],data[b],data[c], where x is a, b, or c.
+func median(data sort.Interface, a, b, c int, swaps *int) int {
+	a, b = order2(data, a, b, swaps)
+	b, c = order2(data, b, c, swaps)
+	a, b = order2(data, a, b, swaps)
+	return b
+}
+
+// medianAdjacent finds the median of data[a - 1], data[a], data[a + 1] and stores the index into a.
+func medianAdjacent(data sort.Interface, a int, swaps *int) int {
+	return median(data, a-1, a, a+1, swaps)
 }
 
 /*
