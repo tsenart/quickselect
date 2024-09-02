@@ -10,7 +10,9 @@ package quickselect
 
 import (
 	"fmt"
+	"math"
 	"math/rand/v2"
+	"sort"
 )
 
 const (
@@ -238,30 +240,47 @@ func partition(data Interface, low, high, pivotIndex int) int {
 	return partitionIndex
 }
 
-func heapInit(data Interface, heap []int) {
-	// Heapify process
-	n := len(heap)
+func heapify(h Interface, n int) {
 	for i := n/2 - 1; i >= 0; i-- {
-		heapDown(data, heap, i, n)
+		down(h, i, n)
 	}
 }
 
-func heapDown(data Interface, heap []int, i, n int) {
+func fix(h Interface, n int, i int) {
+	if !down(h, i, n) {
+		up(h, i)
+	}
+}
+
+func up(h Interface, j int) {
+	for {
+		i := (j - 1) / 2 // parent
+		if i == j || !h.Less(i, j) {
+			break
+		}
+		h.Swap(i, j)
+		j = i
+	}
+}
+
+func down(h Interface, i0, n int) bool {
+	i := i0
 	for {
 		j1 := 2*i + 1
 		if j1 >= n || j1 < 0 { // j1 < 0 after int overflow
 			break
 		}
 		j := j1 // left child
-		if j2 := j1 + 1; j2 < n && data.Less(heap[j1], heap[j2]) {
-			j = j2 // right child
+		if j2 := j1 + 1; j2 < n && h.Less(j1, j2) {
+			j = j2 // = 2*i + 2  // right child
 		}
-		if !data.Less(heap[i], heap[j]) {
+		if !h.Less(i, j) {
 			break
 		}
-		heap[i], heap[j] = heap[j], heap[i]
+		h.Swap(i, j)
 		i = j
 	}
+	return i > i0
 }
 
 /*
@@ -270,24 +289,100 @@ It keeps a max-heap of the smallest k elements seen so far as we iterate over
 all of the elements. It adds a new element and pops the largest element.
 */
 func heapSelectionFinding(data Interface, k int) {
-	heap := make([]int, k)
-	for i := 0; i < k; i++ {
-		heap[i] = i
+	l := data.Len()
+	if k >= l {
+		return
 	}
-	heapInit(data, heap)
 
-	length := data.Len()
-	for i := k; i < length; i++ {
-		if data.Less(i, heap[0]) {
-			heap[0] = i
-			heapDown(data, heap, 0, k)
+	s := sortedness(data)
+	if s < 0 {
+		last := l - 1
+		for i := 0; i < k; i++ {
+			data.Swap(i, last-i)
 		}
 	}
 
-	insertionSort(IntSlice(heap), 0, k)
-	for i := 0; i < k; i++ {
-		data.Swap(i, heap[i])
+	heapify(data, k)
+
+	// data[:k] is now in a heap order but such that data[0] is the max element.
+	// We now consider each data[k:] and if its less than data[0] we pop data[0]
+	// and swap it in and restore the heap invariants
+	for i := k; i < l; i++ {
+		if data.Less(i, 0) {
+			data.Swap(i, 0)
+			fix(data, k, 0)
+		}
 	}
+}
+
+type backwards struct {
+	sort.Interface
+	lastIdx int // cached
+}
+
+func (b backwards) Less(i, j int) bool {
+	return b.Interface.Less(b.lastIdx-i, b.lastIdx-j)
+}
+
+func (b backwards) Swap(i, j int) {
+	b.Interface.Swap(b.lastIdx-i, b.lastIdx-j)
+}
+
+// sortedness estimates the sortedness of a slice and its direction.
+// The return value between -1.0 and 0.0 indicates a inverted order,
+// and 0.0 to 1.0 indicates desired order.
+//
+// Don't use this function if the array data has periodicity — since it
+// uses systematic sampling, it will not be able to sample uniformly.
+func sortedness(data Interface) float32 {
+	ln := data.Len()
+
+	switch ln {
+	case 0, 1:
+		return 1.0
+	case 2:
+		return 1.0
+	}
+
+	sampleSize := sampleSize(ln, 0.05)
+	ordered, inverted := 0, 0
+
+	// Determine the stride length based on the sample size and array length
+	stride := ln / sampleSize
+	if stride < 1 {
+		stride = 1 // Ensure at least one element per stride
+	}
+
+	// Linearly iterate over the array with the determined stride
+	for i := 0; i < ln-1; i += stride {
+		j := i + 1
+		if data.Less(i, j) {
+			ordered++
+		} else if data.Less(j, i) {
+			inverted++
+		}
+	}
+
+	// Adjust the count based on the actual number of comparisons made
+	actualSamples := (ln - 1) / stride
+
+	// Calculate sortedness by dividing ordered pairs by total pairs
+	return float32(ordered-inverted) / float32(actualSamples)
+}
+
+// sampleSize calculates the required sample size for a given population size using Yamane's formula.
+//
+// Parameters:
+// - popSize (int): Total number of individuals in the population.
+// - marginOfError (float64): Desired margin of error (e.g., 0.05 for 5%).
+//
+// Examples: (10, 0.05) -> 10, (50, 0.05) -> 45, (100, 0.05) -> 80, (10000, 0.05) -> 385, (10M, 0.05) -> 400
+// Ref: https://www.tenato.com/market-research/what-is-the-ideal-sample-size-for-a-survey/
+func sampleSize(popSize int, marginOfError float64) int {
+	// Calculate the sample size using Yamane's formula with float64 arithmetic
+	n := float64(popSize) / (1.0 + float64(popSize)*(marginOfError*marginOfError))
+	// Round up to the nearest whole number and ensure it's not larger than the population size
+	return min(int(math.Ceil(n)), popSize)
 }
 
 /*
