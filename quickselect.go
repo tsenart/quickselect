@@ -44,14 +44,14 @@ func QuickSelect(data sort.Interface, k int) (lo, hi int, err error) {
 		return 0, length, nil
 	}
 
-	// kRatio := float64(k) / float64(length)
-	// if length <= naiveSelectionLengthThreshold && k <= naiveSelectionThreshold {
-	// 	lo, hi = naiveSelect(data, k)
-	// } else if kRatio <= heapSelectionKRatio && k <= heapSelectionThreshold {
-	lo, hi = heapSelect(data, k)
-	// } else {
-	// 	lo, hi = quickSelect(data, 0, length-1, k)
-	// }
+	kRatio := float64(k) / float64(length)
+	if length <= naiveSelectionLengthThreshold && k <= naiveSelectionThreshold {
+		lo, hi = naiveSelect(data, k)
+	} else if kRatio <= heapSelectionKRatio && k <= heapSelectionThreshold {
+		lo, hi = heapSelect(data, k)
+	} else {
+		lo, hi = quickSelect(data, 0, length-1, k)
+	}
 
 	return lo, hi, nil
 }
