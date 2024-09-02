@@ -263,11 +263,11 @@ func heapSelect(data sort.Interface, k int) (lo, hi int) {
 
 	s := sortedness(data)
 	if s < 0 {
+		// Data is in reverse order, use min-heap
 		minHeapReverseInit(data, k)
 
-		// data[l-k:] is now in a min heap order with data[l-1] as the smallest element.
-		// We now consider each data[:l-k] and if it's smaller than data[l-1] we pop data[l-1],
-		// swap it in, and restore the heap invariants
+		// Consider each element from data[l-k-1] to data[0]
+		// If it's smaller than data[l-1], swap and fix the heap
 		for i := l - k - 1; i >= 0; i-- {
 			if data.Less(i, l-1) {
 				data.Swap(i, l-1)
