@@ -5,6 +5,20 @@ import (
 	"testing"
 )
 
+func TestQuickSelectAllDuplicates(t *testing.T) {
+
+	data := []int{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
+	lo, hi, err := QuickSelect(sort.IntSlice(data), 5)
+	if err != nil {
+		t.Errorf("Shouldn't have raised error: '%s'", err.Error())
+	}
+	smallestK := data[lo:hi]
+	expectedK := []int{1, 1, 1, 1, 1}
+	if !hasSameElements(smallestK, expectedK) {
+		t.Errorf("Expected smallest K elements to be '%v', but got '%v'", expectedK, smallestK)
+	}
+}
+
 func TestQuickSelectWithSimpleArray(t *testing.T) {
 	data := []int{50, 20, 30, 25, 45, 2, 6, 10, 3, 4, 5}
 	lo, hi, err := QuickSelect(sort.IntSlice(data), 5)
@@ -54,6 +68,7 @@ func TestNaiveSelectionFinding(t *testing.T) {
 		Array     []int
 		ExpectedK []int
 	}{
+		{[]int{1, 1, 1, 1, 1}, []int{1, 1, 1, 1}},
 		{[]int{0, 14, 16, 29, 12, 2, 4, 4, 7, 29}, []int{0, 2, 4, 4}},
 		{[]int{9, 3, 2, 18}, []int{9, 3, 2, 18}},
 		{[]int{16, 29, -11, 25, 28, -14, 10, 4, 7, -27}, []int{-27, -11, -14, 4}},
@@ -75,6 +90,7 @@ func TestHeapSelect(t *testing.T) {
 		Array     []int
 		ExpectedK []int
 	}{
+		{[]int{1, 1, 1, 1, 1}, []int{1, 1, 1, 1}},
 		{[]int{0, 14, 16, 29, 12, 2, 4, 4, 7, 29}, []int{0, 2, 4, 4}},
 		{[]int{9, 3, 2, 18}, []int{9, 3, 2, 18}},
 		{[]int{16, 29, -11, 25, 28, -14, 10, 4, 7, -27}, []int{-27, -11, -14, 4}},

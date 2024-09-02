@@ -38,7 +38,11 @@ method will raise an error.
 func QuickSelect(data sort.Interface, k int) (lo, hi int, err error) {
 	length := data.Len()
 	if k < 1 || k > length {
-		return 0, 0, fmt.Errorf("The specified index '%d' is outside of the data's range of indices [0,%d)", k, length)
+		return 0, 0, fmt.Errorf("k=%d outside the range [1, %d]", k, length)
+	}
+
+	if k == length {
+		return 0, length, nil
 	}
 
 	kRatio := float64(k) / float64(length)
@@ -155,19 +159,60 @@ func partition(data sort.Interface, low, high, pivotIndex int) int {
 	return partitionIndex
 }
 
-func heapify(h sort.Interface, n int) {
+/*
+This method implements the heap strategy for selecting the smallest k elements.
+It keeps a max-heap of the smallest k elements seen so far as we iterate over
+all of the elements. It adds a new element and pops the largest element.
+*/
+func heapSelect(data sort.Interface, k int) (lo, hi int) {
+	l := data.Len()
+	if k >= l {
+		return 0, l
+	}
+
+	s := sortedness(data)
+	if s < 0 {
+		minHeapReverseInit(data, k)
+
+		// data[l-k:] is now in a min heap order with data[l-1] as the smallest element.
+		// We now consider each data[:l-k] and if it's smaller than data[l-1] we pop data[l-1],
+		// swap it in, and restore the heap invariants
+		for i := l - k - 1; i >= 0; i-- {
+			if data.Less(i, l-1) {
+				data.Swap(i, l-1)
+				minHeapReverseFix(data, k, k-1)
+			}
+		}
+
+		return l - k, l
+	}
+
+	// For non-reversed data, use max heap logic
+	maxHeapInit(data, k)
+
+	for i := k; i < l; i++ {
+		if data.Less(i, 0) {
+			data.Swap(i, 0)
+			maxHeapFix(data, k, 0)
+		}
+	}
+
+	return 0, k
+}
+
+func maxHeapInit(h sort.Interface, n int) {
 	for i := n/2 - 1; i >= 0; i-- {
-		down(h, i, n)
+		maxHeapDown(h, i, n)
 	}
 }
 
-func fix(h sort.Interface, n int, i int) {
-	if !down(h, i, n) {
-		up(h, i)
+func maxHeapFix(h sort.Interface, n int, i int) {
+	if !maxHeapDown(h, i, n) {
+		maxHeapUp(h, i)
 	}
 }
 
-func up(h sort.Interface, j int) {
+func maxHeapUp(h sort.Interface, j int) {
 	for {
 		i := (j - 1) / 2 // parent
 		if i == j || !h.Less(i, j) {
@@ -178,7 +223,7 @@ func up(h sort.Interface, j int) {
 	}
 }
 
-func down(h sort.Interface, i0, n int) bool {
+func maxHeapDown(h sort.Interface, i0, n int) bool {
 	i := i0
 	for {
 		j1 := 2*i + 1
@@ -198,65 +243,22 @@ func down(h sort.Interface, i0, n int) bool {
 	return i > i0
 }
 
-/*
-This method implements the heap strategy for selecting the smallest k elements.
-It keeps a max-heap of the smallest k elements seen so far as we iterate over
-all of the elements. It adds a new element and pops the largest element.
-*/
-func heapSelect(data sort.Interface, k int) (lo, hi int) {
-	l := data.Len()
-	if k >= l {
-		return 0, l
-	}
-
-	// s := sortedness(data)
-	// if s < 0 {
-	// 	heapifyReverse(data, k)
-
-	// 	// data[l-k:] is now in a heap order but such that data[l-1] is the min element.
-	// 	// We now consider each data[:l-k] and if it's greater than data[l-1] we pop data[l-1]
-	// 	// and swap it in and restore the heap invariants
-	// 	for i := l - k - 1; i >= 0; i-- {
-	// 		if data.Less(l-1, i) {
-	// 			data.Swap(i, l-1)
-	// 			fixReverse(data, k, 0)
-	// 		}
-	// 	}
-
-	// 	return l - k, l
-	// }
-
-	heapify(data, k)
-
-	// data[:k] is now in a heap order but such that data[0] is the max element.
-	// We now consider each data[k:] and if its less than data[0] we pop data[0]
-	// and swap it in and restore the heap invariants
-	for i := k; i < l; i++ {
-		if data.Less(i, 0) {
-			data.Swap(i, 0)
-			fix(data, k, 0)
-		}
-	}
-
-	return 0, k
-}
-
-func heapifyReverse(h sort.Interface, n int) {
+func minHeapReverseInit(h sort.Interface, n int) {
 	for i := n/2 - 1; i >= 0; i-- {
-		downReverse(h, i, n)
+		minHeapReverseDown(h, i, n)
 	}
 }
 
-func fixReverse(h sort.Interface, n int, i int) {
-	if !downReverse(h, i, n) {
-		upReverse(h, i, n)
+func minHeapReverseFix(h sort.Interface, n int, i int) {
+	if !minHeapReverseDown(h, i, n) {
+		minHeapReverseUp(h, i, n)
 	}
 }
 
-func upReverse(h sort.Interface, j, n int) {
+func minHeapReverseUp(h sort.Interface, j, n int) {
 	for {
 		i := (j - 1) / 2 // parent
-		if i == j || !h.Less(n-1-i, n-1-j) {
+		if i == j || !h.Less(n-1-j, n-1-i) {
 			break
 		}
 		h.Swap(n-1-i, n-1-j)
@@ -264,7 +266,7 @@ func upReverse(h sort.Interface, j, n int) {
 	}
 }
 
-func downReverse(h sort.Interface, i0, n int) bool {
+func minHeapReverseDown(h sort.Interface, i0, n int) bool {
 	i := i0
 	for {
 		j1 := 2*i + 1
@@ -272,10 +274,10 @@ func downReverse(h sort.Interface, i0, n int) bool {
 			break
 		}
 		j := j1 // left child
-		if j2 := j1 + 1; j2 < n && h.Less(n-1-j1, n-1-j2) {
+		if j2 := j1 + 1; j2 < n && h.Less(n-1-j2, n-1-j1) {
 			j = j2 // = 2*i + 2  // right child
 		}
-		if !h.Less(n-1-i, n-1-j) {
+		if !h.Less(n-1-j, n-1-i) {
 			break
 		}
 		h.Swap(n-1-i, n-1-j)
