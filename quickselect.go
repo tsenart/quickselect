@@ -10,6 +10,7 @@ package quickselect
 
 import (
 	"math"
+	"slices"
 	"sort"
 )
 
@@ -328,56 +329,64 @@ func heapSelect(data sort.Interface, k int) (lo, hi int) {
 		return 0, 0
 	}
 
-	if k >= n {
-		return 0, n
-	}
-
-	s := sortedness(data)
-	if s < 0 {
-		data = sort.Reverse(data)
-	}
-
 	if k == 1 {
 		lo = findMinimum(data, n)
 		return lo, lo + 1
 	}
 
-	heapInit(data, k)
+	if k >= n {
+		return 0, n
+	}
 
-	for i := k; i < n; i++ {
-		if data.Less(i, 0) {
-			data.Swap(i, 0)
-			heapFix(data, k, 0)
+	heap := make([]int, k)
+	for i := range heap {
+		heap[i] = i
+	}
+
+	s := sortedness(data)
+	if s >= 0 {
+		heapInit(data, heap)
+
+		const root = 0
+		for i := k; i < n; i++ {
+			if data.Less(i, root) {
+				heap[root] = i
+				heapDown(data, heap, root, k)
+			}
 		}
+	} else {
+		revHeapInit(data, heap)
+
+		root := n - 1
+		for i := n - k - 1; i < n; i++ {
+			if data.Less(i, root) {
+				heap[root] = i
+				revHeapDown(data, heap, root, k)
+			}
+		}
+
+		// Now reverse the last k elements
+		for i, j := n-k, n-1; i < j; i, j = i+1, j-1 {
+			data.Swap(i, j)
+		}
+	}
+
+	slices.Sort(heap)
+	for i := range heap {
+		data.Swap(i, heap[i])
 	}
 
 	return 0, k
 }
 
-func heapInit(h sort.Interface, k int) {
+func heapInit(data sort.Interface, heap []int) {
+	k := len(heap)
 	for i := k/2 - 1; i >= 0; i-- {
-		heapDown(h, i, k)
+		heapDown(data, heap, i, k)
 	}
 }
 
-func heapFix(h sort.Interface, k, i int) {
-	if !heapDown(h, i, k) {
-		heapUp(h, i)
-	}
-}
-
-func heapUp(h sort.Interface, j int) {
-	for {
-		i := (j - 1) / 2 // parent
-		if i == j || !h.Less(j, i) {
-			break
-		}
-		h.Swap(i, j)
-		j = i
-	}
-}
-
-func heapDown(h sort.Interface, i0, k int) bool {
+func heapDown(data sort.Interface, heap []int, i0, k int) bool {
 	i := i0
 	for {
 		j1 := 2*i + 1
@@ -385,45 +394,28 @@ func heapDown(h sort.Interface, i0, k int) bool {
 			break
 		}
 		j := j1 // left child
-		if j2 := j1 + 1; j2 < k && h.Less(j2, j1) {
+		if j2 := j1 + 1; j2 < k && data.Less(heap[j2], heap[j1]) {
 			j = j2 // = 2*i + 2  // right child
 		}
-		if !h.Less(j, i) {
+		if !data.Less(heap[j], heap[i]) {
 			break
 		}
-		h.Swap(i, j)
+		heap[i], heap[j] = heap[j], heap[i]
 		i = j
 	}
 	return i > i0
 }
 
-func revHeapInit(h sort.Interface, k int) {
-	n := h.Len()
+func revHeapInit(data sort.Interface, heap []int) {
+	n := data.Len()
+	k := len(heap)
 	for i := n - k/2 - 1; i < n; i++ {
-		revHeapDown(h, i, k)
+		revHeapDown(data, heap, i, k)
 	}
 }
 
-func revHeapFix(h sort.Interface, k, i int) {
-	if !revHeapDown(h, i, k) {
-		revHeapUp(h, i)
-	}
-}
-
-func revHeapUp(h sort.Interface, i int) {
-	n := h.Len()
-	for {
-		parent := (n + i + 1) / 2
-		if parent == i || !h.Less(i, parent) {
-			break
-		}
-		h.Swap(i, parent)
-		i = parent
-	}
-}
-
-func revHeapDown(h sort.Interface, i0, k int) bool {
-	n := h.Len()
+func revHeapDown(data sort.Interface, heap []int, i0, k int) bool {
+	n := data.Len()
 	hi := n - k
 	i := i0
 	for {
@@ -433,13 +425,13 @@ func revHeapDown(h sort.Interface, i0, k int) bool {
 		}
 		j := left
 		right := left - 1
-		if right >= 0 && h.Less(right, left) {
+		if right >= 0 && data.Less(heap[right], heap[left]) {
 			j = right
 		}
-		if !h.Less(j, i) {
+		if !data.Less(heap[j], heap[i]) {
 			break
 		}
-		h.Swap(i, j)
+		heap[i], heap[j] = heap[j], heap[i]
 		i = j
 	}
 	return i < i0
