@@ -10,7 +10,8 @@ package quickselect
 
 import (
 	"fmt"
-	"math/rand/v2"
+	"math/bits"
+	"sort"
 )
 
 const (
@@ -150,17 +151,60 @@ func randomizedSelectionFinding(data Interface, low, high, k int) {
 			return
 		}
 
-		pivotIndex = rand.IntN(high+1-low) + low
-		pivotIndex = partition(data, low, high, pivotIndex)
+		pivotIndex = choosePivot(data, low, high)
+		lt, gt := partition3Way(data, low, high, pivotIndex)
 
-		if k < pivotIndex {
-			high = pivotIndex - 1
-		} else if k > pivotIndex {
-			low = pivotIndex + 1
+		if k < lt {
+			high = lt - 1
+		} else if k > gt {
+			low = gt + 1
 		} else {
 			return
 		}
 	}
+}
+
+// partition3Way partitions the slice data[a:b] around the pivot element.
+// It returns two indices: lt and gt.
+// - All elements in data[a:lt] are less than the pivot.
+// - All elements in data[lt:gt+1] are equal to the pivot.
+// - All elements in data[gt+1:b] are greater than the pivot.
+func partition3Way(data sort.Interface, a, b, pivot int) (lt, gt int) {
+	data.Swap(a, pivot)
+	lt, gt = a, b-1
+	i := a + 1
+
+	for i <= gt {
+		if data.Less(i, a) {
+			data.Swap(lt, i)
+			lt++
+			i++
+		} else if data.Less(a, i) {
+			data.Swap(i, gt)
+			gt--
+		} else {
+			i++
+		}
+	}
+
+	// Handle the case where all elements are equal
+	if lt == a && gt == b-1 {
+		return a, b - 1
+	}
+
+	data.Swap(a, lt)
+	return lt, gt
+}
+
+// findMin finds the index of the minimum element in the data.
+func findMinimum(data Interface, length int) int {
+	minIndex := 0
+	for i := 1; i < length; i++ {
+		if data.Less(i, minIndex) {
+			minIndex = i
+		}
+	}
+	return minIndex
 }
 
 // Insertion sort
@@ -225,17 +269,103 @@ originally in the pivotIndex and that the elements in the range
 [paritionIndex + 1, high] are greater than the element originally in the
 pivotIndex.
 */
-func partition(data Interface, low, high, pivotIndex int) int {
-	partitionIndex := low
-	data.Swap(pivotIndex, high)
-	for i := low; i < high; i++ {
-		if data.Less(i, high) {
-			data.Swap(i, partitionIndex)
-			partitionIndex++
-		}
+func partition(data Interface, a, b, pivot int) int {
+	data.Swap(a, pivot)
+	i, j := a+1, b-1 // i and j are inclusive of the elements remaining to be partitioned
+
+	for i <= j && data.Less(i, a) {
+		i++
 	}
-	data.Swap(partitionIndex, high)
-	return partitionIndex
+	for i <= j && !data.Less(j, a) {
+		j--
+	}
+	if i > j {
+		data.Swap(j, a)
+		return j
+	}
+	data.Swap(i, j)
+	i++
+	j--
+
+	for {
+		for i <= j && data.Less(i, a) {
+			i++
+		}
+		for i <= j && !data.Less(j, a) {
+			j--
+		}
+		if i > j {
+			break
+		}
+		data.Swap(i, j)
+		i++
+		j--
+	}
+	data.Swap(j, a)
+	return j
+}
+
+// choosePivot chooses a pivot in data[a:b].
+//
+// [0,8): chooses a static pivot.
+// [8,shortestNinther): uses the simple median-of-three method.
+// [shortestNinther,∞): uses the Tukey ninther method.
+func choosePivot(data sort.Interface, a, b int) (pivot int) {
+	const (
+		shortestNinther = 50
+		maxSwaps        = 4 * 3
+	)
+
+	l := b - a
+
+	var (
+		swaps int
+		i     = a + l/4*1
+		j     = a + l/4*2
+		k     = a + l/4*3
+	)
+
+	if l >= 8 {
+		if l >= shortestNinther {
+			// Tukey ninther method, the idea came from Rust's implementation.
+			i = medianAdjacent(data, i, &swaps)
+			j = medianAdjacent(data, j, &swaps)
+			k = medianAdjacent(data, k, &swaps)
+		}
+		// Find the median among i, j, k and stores it into j.
+		j = median(data, i, j, k, &swaps)
+	}
+
+	switch swaps {
+	case 0:
+		return j
+	case maxSwaps:
+		return j
+	default:
+		return j
+	}
+}
+
+// order2 returns x,y where data[x] <= data[y], where x,y=a,b or x,y=b,a.
+func order2(data sort.Interface, a, b int, swaps *int) (int, int) {
+	if data.Less(b, a) {
+		*swaps++
+		return b, a
+	}
+	return a, b
+}
+
+// median returns x where data[x] is the median of data[a],data[b],data[c], where x is a, b, or c.
+func median(data sort.Interface, a, b, c int, swaps *int) int {
+	a, b = order2(data, a, b, swaps)
+	b, c = order2(data, b, c, swaps)
+	a, b = order2(data, a, b, swaps)
+	return b
+}
+
+// medianAdjacent finds the median of data[a - 1], data[a], data[a + 1] and stores the index into a.
+func medianAdjacent(data sort.Interface, a int, swaps *int) int {
+	return median(data, a-1, a, a+1, swaps)
 }
 
 func heapInit(data Interface, heap []int) {
@@ -308,16 +438,91 @@ func QuickSelect(data Interface, k int) error {
 		return fmt.Errorf("The specified index '%d' is outside of the data's range of indices [0,%d)", k, length)
 	}
 
-	kRatio := float64(k) / float64(length)
-	if length <= naiveSelectionLengthThreshold && k <= naiveSelectionThreshold {
-		naiveSelectionFinding(data, k)
-	} else if kRatio <= heapSelectionKRatio && k <= heapSelectionThreshold {
-		heapSelectionFinding(data, k)
-	} else {
-		randomizedSelectionFinding(data, 0, length-1, k)
-	}
+	// if k == 1 {
+	// 	minIdx := findMinimum(data, length)
+	// 	data.Swap(0, minIdx)
+	// 	return nil
+	// }
+
+	pdqQuickSelect(data, 0, length-1, k-1, bits.Len(uint(data.Len())))
 
 	return nil
+}
+
+func pdqQuickSelect(data Interface, a, b, k, limit int) {
+	const maxInsertion = 12
+
+	var (
+		wasBalanced    = true
+		wasPartitioned = true
+	)
+
+	for {
+		length := b - a
+
+		if length <= maxInsertion {
+			insertionSort_func(data, a, b+1)
+			return
+		}
+
+		// Fall back to heapsort if too many bad choices were made.
+		if limit == 0 {
+			heapSort_func(data, a, b+1)
+			return
+		}
+
+		// Break patterns if the last partitioning was imbalanced
+		if !wasBalanced {
+			breakPatterns_func(data, a, b+1)
+			limit--
+		}
+
+		pivot, hint := choosePivot_func(data, a, b+1)
+		if hint == decreasingHint {
+			reverseRange_func(data, a, b+1)
+			pivot = (b - a) - (pivot - a)
+			hint = increasingHint
+		}
+
+		// Check if the slice is likely already sorted
+		if wasBalanced && wasPartitioned && hint == increasingHint {
+			if partialInsertionSort_func(data, a, b+1) {
+				return
+			}
+		}
+
+		// Handle many duplicate elements
+		if a > 0 && !data.Less(a-1, pivot) {
+			mid := partitionEqual_func(data, a, b+1, pivot)
+			if k < mid-a {
+				b = mid - 1
+			} else if k >= mid-a {
+				k -= mid - a
+				a = mid
+			} else {
+				return // k is in the range of equal elements
+			}
+			continue
+		}
+
+		newPivot, alreadyPartitioned := partition_func(data, a, b+1, pivot)
+		wasPartitioned = alreadyPartitioned
+
+		leftLen, rightLen := newPivot-a, b-newPivot
+		balanceThreshold := length / 8
+
+		if k == newPivot {
+			return
+		} else if k < newPivot {
+			wasBalanced = leftLen >= balanceThreshold
+			b = newPivot - 1
+		} else {
+			wasBalanced = rightLen >= balanceThreshold
+			a = newPivot + 1
+		}
+
+		limit--
+	}
 }
 
 // IntQuickSelect mutates the data so that the first k elements in the int
