@@ -1,6 +1,7 @@
 package quickselect
 
 import (
+	"reflect"
 	"sort"
 	"testing"
 )
@@ -240,3 +241,91 @@ func BenchmarkSortSize1e5K1e1(b *testing.B) { bench(b, 1e5, 1e1, false) }
 func BenchmarkSortSize1e6K1e1(b *testing.B) { bench(b, 1e6, 1e1, false) }
 func BenchmarkSortSize1e7K1e1(b *testing.B) { bench(b, 1e7, 1e1, false) }
 func BenchmarkSortSize1e8K1e1(b *testing.B) { bench(b, 1e8, 1e1, false) }
+
+func FuzzRevMinHeap(f *testing.F) {
+	f.Add([]byte{0})
+	f.Add([]byte{1})
+	f.Add([]byte{2, 1})
+	f.Add([]byte{1, 2})
+	f.Add([]byte{2, 1, 0})
+	f.Add([]byte{0, 1, 2})
+	f.Add([]byte{1, 2, 0})
+	f.Add([]byte{3, 2, 1, 0})
+	f.Add([]byte{0, 1, 2, 3})
+	f.Add([]byte{1, 2, 0, 3})
+	f.Add([]byte{3, 2, 0, 1})
+
+	f.Fuzz(func(t *testing.T, in []byte) {
+		input := make([]int, len(in))
+		for i, v := range in {
+			input[i] = int(v)
+		}
+
+		data := sort.IntSlice(input)
+		want := make([]int, len(data))
+		copy(want, input)
+		sort.Ints(want)
+
+		n := len(data)
+		revHeapInit(data, n)
+
+		// Pop all elements and check if they're in have order
+		have := make([]int, 0, n)
+		for len(data) > 0 {
+			have = append(have, data[len(data)-1])
+			data[len(data)-1] = data[0]
+			if len(data) > 1 {
+				revHeapDown(data, len(data)-1, len(data)-1)
+			}
+			data = data[1:]
+		}
+
+		if !reflect.DeepEqual(have, want) {
+			t.Fatalf("\nwant %v\ngot  %v", want, have)
+		}
+	})
+}
+
+func FuzzMinHeap(f *testing.F) {
+	f.Add([]byte{0})
+	f.Add([]byte{1})
+	f.Add([]byte{2, 1})
+	f.Add([]byte{1, 2})
+	f.Add([]byte{2, 1, 0})
+	f.Add([]byte{0, 1, 2})
+	f.Add([]byte{1, 2, 0})
+	f.Add([]byte{3, 2, 1, 0})
+	f.Add([]byte{0, 1, 2, 3})
+	f.Add([]byte{1, 2, 0, 3})
+	f.Add([]byte{3, 2, 0, 1})
+
+	f.Fuzz(func(t *testing.T, in []byte) {
+		input := make([]int, len(in))
+		for i, v := range in {
+			input[i] = int(v)
+		}
+
+		data := sort.IntSlice(input)
+		want := make([]int, len(data))
+		copy(want, input)
+		sort.Ints(want)
+
+		n := len(data)
+		heapInit(data, n)
+
+		// Pop all elements and check if they're in have order
+		have := make([]int, 0, n)
+		for len(data) > 0 {
+			have = append(have, data[0])
+			data[0] = data[len(data)-1]
+			if len(data) > 1 {
+				heapDown(data, 0, len(data))
+			}
+			data = data[:len(data)-1]
+		}
+
+		if !reflect.DeepEqual(have, want) {
+			t.Fatalf("\nwant %v\ngot  %v", want, have)
+		}
+	})
+}

@@ -75,18 +75,23 @@ func quickSelect(data sort.Interface, k int) (lo, hi int) {
 		return 0, length
 	}
 
+	s := sortedness(data)
+	if s < 0 {
+		data = sort.Reverse(data)
+	}
+
 	if k == 1 {
 		lo = findMinimum(data, length)
 		return lo, lo + 1
 	}
 
 	a, b := 0, length-1
-	k = a + k - 1
+	k += a
 
 	for b > a {
 		if b-a <= partitionThreshold {
 			insertionSort(data, a, b+1)
-			return a, a + k
+			return a, k
 		}
 
 		pivot := choosePivot(data, a, b)
@@ -355,7 +360,7 @@ func heapInit(h sort.Interface, k int) {
 	}
 }
 
-func heapFix(h sort.Interface, k int, i int) {
+func heapFix(h sort.Interface, k, i int) {
 	if !heapDown(h, i, k) {
 		heapUp(h, i)
 	}
@@ -364,7 +369,7 @@ func heapFix(h sort.Interface, k int, i int) {
 func heapUp(h sort.Interface, j int) {
 	for {
 		i := (j - 1) / 2 // parent
-		if i == j || !h.Less(i, j) {
+		if i == j || !h.Less(j, i) {
 			break
 		}
 		h.Swap(i, j)
@@ -380,16 +385,64 @@ func heapDown(h sort.Interface, i0, k int) bool {
 			break
 		}
 		j := j1 // left child
-		if j2 := j1 + 1; j2 < k && h.Less(j1, j2) {
+		if j2 := j1 + 1; j2 < k && h.Less(j2, j1) {
 			j = j2 // = 2*i + 2  // right child
 		}
-		if !h.Less(i, j) {
+		if !h.Less(j, i) {
 			break
 		}
 		h.Swap(i, j)
 		i = j
 	}
 	return i > i0
+}
+
+func revHeapInit(h sort.Interface, k int) {
+	n := h.Len()
+	for i := n - k/2 - 1; i < n; i++ {
+		revHeapDown(h, i, k)
+	}
+}
+
+func revHeapFix(h sort.Interface, k, i int) {
+	if !revHeapDown(h, i, k) {
+		revHeapUp(h, i)
+	}
+}
+
+func revHeapUp(h sort.Interface, i int) {
+	n := h.Len()
+	for {
+		parent := (n + i + 1) / 2
+		if parent == i || !h.Less(i, parent) {
+			break
+		}
+		h.Swap(i, parent)
+		i = parent
+	}
+}
+
+func revHeapDown(h sort.Interface, i0, k int) bool {
+	n := h.Len()
+	hi := n - k
+	i := i0
+	for {
+		left := n - 2*(n-i)
+		if left < hi {
+			break
+		}
+		j := left
+		right := left - 1
+		if right >= 0 && h.Less(right, left) {
+			j = right
+		}
+		if !h.Less(j, i) {
+			break
+		}
+		h.Swap(i, j)
+		i = j
+	}
+	return i < i0
 }
 
 // sortedness estimates the sortedness of a slice and its direction.
