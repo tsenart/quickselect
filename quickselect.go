@@ -34,23 +34,23 @@ Note that k must be in the range [0, data.Len()), otherwise the QuickSelect
 method will raise an error.
 */
 func QuickSelect(data sort.Interface, k int) (lo, hi int) {
-	length := data.Len()
-	if k <= 0 || length <= 0 {
-		return 0, 0
-	}
+	// length := data.Len()
+	// if k <= 0 || length <= 0 {
+	// 	return 0, 0
+	// }
 
-	if k >= length {
-		return 0, length
-	}
+	// if k >= length {
+	// 	return 0, length
+	// }
 
-	kRatio := float64(k) / float64(length)
-	if length <= naiveSelectionLengthThreshold && k <= naiveSelectionThreshold {
-		lo, hi = naiveSelect(data, k)
-	} else if kRatio <= heapSelectionKRatio && k <= heapSelectionThreshold {
-		return heapSelect(data, k)
-	}
+	// kRatio := float64(k) / float64(length)
+	// if length <= naiveSelectionLengthThreshold && k <= naiveSelectionThreshold {
+	// 	lo, hi = naiveSelect(data, k)
+	// } else if kRatio <= heapSelectionKRatio && k <= heapSelectionThreshold {
+	return heapSelect(data, k)
+	// }
 
-	return quickSelect(data, k)
+	// return quickSelect(data, k)
 }
 
 /*
@@ -318,63 +318,50 @@ It keeps a max-heap of the smallest k elements seen so far as we iterate over
 all of the elements. It adds a new element and pops the largest element.
 */
 func heapSelect(data sort.Interface, k int) (lo, hi int) {
-	l := data.Len()
-	if k <= 0 || l <= 0 {
+	n := data.Len()
+	if k <= 0 || n <= 0 {
 		return 0, 0
 	}
 
-	if k == 1 {
-		lo = findMinimum(data, l)
-		return lo, lo + 1
-	}
-
-	if k >= l {
-		return 0, l
+	if k >= n {
+		return 0, n
 	}
 
 	s := sortedness(data)
 	if s < 0 {
-		// Data is in reverse order, use min-heap
-		minHeapReverseInit(data, k)
-
-		// Consider each element from data[l-k-1] to data[0]
-		// If it's smaller than data[l-1], swap and fix the heap
-		for i := l - k - 1; i >= 0; i-- {
-			if data.Less(i, l-1) {
-				data.Swap(i, l-1)
-				minHeapReverseFix(data, k, k-1)
-			}
-		}
-
-		return l - k, l
+		data = sort.Reverse(data)
 	}
 
-	// For non-reversed data, use max heap logic
-	maxHeapInit(data, k)
+	if k == 1 {
+		lo = findMinimum(data, n)
+		return lo, lo + 1
+	}
 
-	for i := k; i < l; i++ {
+	heapInit(data, k)
+
+	for i := k; i < n; i++ {
 		if data.Less(i, 0) {
 			data.Swap(i, 0)
-			maxHeapFix(data, k, 0)
+			heapFix(data, k, 0)
 		}
 	}
 
-	return 0, k - 1
+	return 0, k
 }
 
-func maxHeapInit(h sort.Interface, n int) {
-	for i := n/2 - 1; i >= 0; i-- {
-		maxHeapDown(h, i, n)
+func heapInit(h sort.Interface, k int) {
+	for i := k/2 - 1; i >= 0; i-- {
+		heapDown(h, i, k)
 	}
 }
 
-func maxHeapFix(h sort.Interface, n int, i int) {
-	if !maxHeapDown(h, i, n) {
-		maxHeapUp(h, i)
+func heapFix(h sort.Interface, k int, i int) {
+	if !heapDown(h, i, k) {
+		heapUp(h, i)
 	}
 }
 
-func maxHeapUp(h sort.Interface, j int) {
+func heapUp(h sort.Interface, j int) {
 	for {
 		i := (j - 1) / 2 // parent
 		if i == j || !h.Less(i, j) {
@@ -385,64 +372,21 @@ func maxHeapUp(h sort.Interface, j int) {
 	}
 }
 
-func maxHeapDown(h sort.Interface, i0, n int) bool {
+func heapDown(h sort.Interface, i0, k int) bool {
 	i := i0
 	for {
 		j1 := 2*i + 1
-		if j1 >= n || j1 < 0 { // j1 < 0 after int overflow
+		if j1 >= k || j1 < 0 { // j1 < 0 after int overflow
 			break
 		}
 		j := j1 // left child
-		if j2 := j1 + 1; j2 < n && h.Less(j1, j2) {
+		if j2 := j1 + 1; j2 < k && h.Less(j1, j2) {
 			j = j2 // = 2*i + 2  // right child
 		}
 		if !h.Less(i, j) {
 			break
 		}
 		h.Swap(i, j)
-		i = j
-	}
-	return i > i0
-}
-
-func minHeapReverseInit(h sort.Interface, n int) {
-	for i := n/2 - 1; i >= 0; i-- {
-		minHeapReverseDown(h, i, n)
-	}
-}
-
-func minHeapReverseFix(h sort.Interface, n int, i int) {
-	if !minHeapReverseDown(h, i, n) {
-		minHeapReverseUp(h, i, n)
-	}
-}
-
-func minHeapReverseUp(h sort.Interface, j, n int) {
-	for {
-		i := (j - 1) / 2 // parent
-		if i == j || !h.Less(n-1-j, n-1-i) {
-			break
-		}
-		h.Swap(n-1-i, n-1-j)
-		j = i
-	}
-}
-
-func minHeapReverseDown(h sort.Interface, i0, n int) bool {
-	i := i0
-	for {
-		j1 := 2*i + 1
-		if j1 >= n || j1 < 0 { // j1 < 0 after int overflow
-			break
-		}
-		j := j1 // left child
-		if j2 := j1 + 1; j2 < n && h.Less(n-1-j2, n-1-j1) {
-			j = j2 // = 2*i + 2  // right child
-		}
-		if !h.Less(n-1-j, n-1-i) {
-			break
-		}
-		h.Swap(n-1-i, n-1-j)
 		i = j
 	}
 	return i > i0
