@@ -339,27 +339,30 @@ func heapSelect(data sort.Interface, k int) (lo, hi int) {
 	}
 
 	heap := make([]int, k)
-	for i := range heap {
-		heap[i] = i
-	}
-
 	s := sortedness(data)
 	if s >= 0 {
+		for i := range heap {
+			heap[i] = i
+		}
+
 		heapInit(data, heap)
 
 		const root = 0
 		for i := k; i < n; i++ {
-			if data.Less(i, root) {
+			if data.Less(i, heap[root]) {
 				heap[root] = i
 				heapDown(data, heap, root, k)
 			}
 		}
 	} else {
+		for i := range heap {
+			heap[len(heap)-1-i] = n - 1 - i
+		}
 		revHeapInit(data, heap)
 
 		root := n - 1
 		for i := n - k - 1; i < n; i++ {
-			if data.Less(i, root) {
+			if data.Less(i, heap[root]) {
 				heap[root] = i
 				revHeapDown(data, heap, root, k)
 			}
@@ -394,10 +397,10 @@ func heapDown(data sort.Interface, heap []int, i0, k int) bool {
 			break
 		}
 		j := j1 // left child
-		if j2 := j1 + 1; j2 < k && data.Less(heap[j2], heap[j1]) {
+		if j2 := j1 + 1; j2 < k && data.Less(heap[j1], heap[j2]) {
 			j = j2 // = 2*i + 2  // right child
 		}
-		if !data.Less(heap[j], heap[i]) {
+		if !data.Less(heap[i], heap[j]) {
 			break
 		}
 		heap[i], heap[j] = heap[j], heap[i]
@@ -425,10 +428,10 @@ func revHeapDown(data sort.Interface, heap []int, i0, k int) bool {
 		}
 		j := left
 		right := left - 1
-		if right >= 0 && data.Less(heap[right], heap[left]) {
+		if right >= 0 && data.Less(heap[left], heap[right]) {
 			j = right
 		}
-		if !data.Less(heap[j], heap[i]) {
+		if !data.Less(heap[i], heap[j]) {
 			break
 		}
 		heap[i], heap[j] = heap[j], heap[i]
